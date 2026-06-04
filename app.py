@@ -1,67 +1,161 @@
-import streamlit as st 
-import time
+# app.py - Aplikasi Manajemen Toko
+import streamlit as st
+from datetime import datetime
 
-st.title("Visualisasi Sorting")
+st.set_page_config(page_title="Manajemen Toko", layout="wide")
+st.title("🏪 Manajemen Toko")
 
-# 1. kontrol UI input data & algoritma 
-col1,col2 = st.columns(2)
-algo = col1.selectbox("pilih algoritma", ["buble sort", "selection sort", "insertion sort"])
-user_input = col2.text_input("input data (pisahkan koma)", "85,60,92,75,88")
+# Inisialisasi session state
+if "produk" not in st.session_state:
+    st.session_state.produk = []
+if "transaksi" not in st.session_state:
+    st.session_state.transaksi = []
+if "id_counter" not in st.session_state:
+    st.session_state.id_counter = 1
 
-# 2. keterangan algoritma dinamis
-if algo =="bubble sort":
-    st.info(" 💡**bubble sort**: membandingkan elemen bersebelahan & menukarnya jika salah urutan. elemen terbesar 'menggelembung' ke akhir.")
-elif algo == "selection sort":
-    st.info(" 💡**selection sort**: memilih elemen terkecil dari bagian yang belum terurut, lalu menukarnya ke posisi paling depan.")
-elif algo == "insertion sort":
-    st.info(" 💡**insertion sort**: bekerja seperti mengurutkan kartu; menyisipkan elemen satu per satu ke posisi yang tepat di bagian yang sudah terurut.")
+# ── Sidebar: Statistik ─────────────────────────────────────────────────────────
+st.sidebar.header("📊 Statistik")
+total_produk = len(st.session_state.produk)
+total_stok = sum(p["stok"] for p in st.session_state.produk)
+total_pendapatan = sum(t["total"] for t in st.session_state.transaksi)
+total_transaksi = len(st.session_state.transaksi)
 
-# 3. keamanan input (parsing teks ke angka)
-try:
-    data = [int(x.strip()) for x in user_input.split(",") if x.strip()]
-except ValueError:
-    st.error("Gagal! Pastikan Anda hanya memasukkan angka.")
-    st.stop()
+st.sidebar.metric("Total Produk", total_produk)
+st.sidebar.metric("Total Stok", total_stok)
+st.sidebar.metric("Pendapatan", f"Rp {total_pendapatan:,.0f}")
+st.sidebar.metric("Jumlah Transaksi", total_transaksi)
 
-# 4. Area Gambar Grafik
-chart = st.empty()
-chart.bar_chart(data)
+stok_tipis = [p for p in st.session_state.produk if p["stok"] <= 5]
+if stok_tipis:
+    st.sidebar.warning(f"⚠️ {len(stok_tipis)} produk stok menipis!")
+    for p in stok_tipis:
+        st.sidebar.write(f"- {p['nama']} (stok: {p['stok']})")
 
-# 5. Tombol & Logika Sorting Utama 
-if st.button("Mulai Urutkan", type="primary"):
-    n = len(data)
+# ── Tab utama ──────────────────────────────────────────────────────────────────
+tab1, tab2, tab3 = st.tabs(["📦 Produk", "💰 Transaksi", "📋 Riwayat"])
 
-    if algo == "bubble sort":
-        for i in range(n):
-            for j in range(0, n - i - 1):
-                if data[j] > data[j + 1]:
-                    data[j], data[j + 1] = data[j + 1] 
-                    # Tukar Posisi
-                    chart.bar_chart(data)
-                    time.sleep(0.2)
-    
-    elif algo == "selection sort":
-        for i in range(n):
-            min_idx = 1
-            for j in range(i + 1, n):
-                if data[j] < data[min_idx]:
-                    min_idx = j
-            data[i], data[min_idx] = data[min_idx], data[i]
-            # Tukar ke depan
-            chart.bar_chart(data)
-            time.sleep(0.2)
+# ── TAB 1: Produk ──────────────────────────────────────────────────────────────
+with tab1:
+    st.subheader("Tambah Produk Baru")
+    with st.form("form_produk"):
+        col1, col2 = st.columns(2)
+        with col1:
+            nama = st.text_input("Nama Produk")
+            kategori = st.selectbox("Kategori", ["Pakaian", "Makanan", "Elektronik", "Lainnya"])
+        with col2:
+            harga = st.number_input("Harga (Rp)", min_value=0, step=500)
+            stok = st.number_input("Stok", min_value=0, step=1)
+        submitted = st.form_submit_button("➕ Tambah Produk")
+        if submitted:
+            if not nama:
+                st.error("Nama produk tidak boleh kosong!")
+            else:
+                st.session_state.produk.append({
+                    "id": st.session_state.id_counter,
+                    "nama": nama,
+                    "kategori": kategori,
+                    "harga": harga,
+                    "stok": stok,
+                })
+                st.session_state.id_counter += 1
+                st.success(f"✅ Produk '{nama}' berhasil ditambahkan!")
+                st.rerun()
 
-    elif algo == "insertion sort":
-        for i in range(1, n):
-            key = data[i]
-            j = i - 1
-            while j >= 0 and data[j] > key:
-                data[j + 1] = data[j] # Geser ke kanan
-                j -= 1
-                chart.bar_chart(data)
-                time.sleep(0.2)
-            data[j + 1] = key
-            chart.bar_chart(data)
-            time.sleep(0.2)
+    st.divider()
+    st.subheader("🗂️ Daftar Produk")
 
-    st.success(f"Sorting Selesai! Hasil: {data}")
+    if not st.session_state.produk:
+        st.info("Belum ada produk. Tambahkan produk di atas.")
+    else:
+        for i, p in enumerate(st.session_state.produk):
+            col1, col2, col3, col4, col5 = st.columns([3, 2, 2, 2, 1])
+            with col1:
+                st.write(f"**{p['nama']}**")
+                st.caption(p["kategori"])
+            with col2:
+                st.write(f"Rp {p['harga']:,.0f}")
+            with col3:
+                if p["stok"] > 10:
+                    st.success(f"Stok: {p['stok']}")
+                elif p["stok"] > 3:
+                    st.warning(f"Stok: {p['stok']}")
+                else:
+                    st.error(f"Stok: {p['stok']}")
+            with col4:
+                new_stok = st.number_input(
+                    "Update stok", value=p["stok"], min_value=0,
+                    key=f"stok_{p['id']}", label_visibility="collapsed"
+                )
+                if new_stok != p["stok"]:
+                    st.session_state.produk[i]["stok"] = new_stok
+                    st.rerun()
+            with col5:
+                if st.button("🗑️", key=f"del_{p['id']}"):
+                    st.session_state.produk.pop(i)
+                    st.rerun()
+
+# ── TAB 2: Transaksi ───────────────────────────────────────────────────────────
+with tab2:
+    st.subheader("Catat Penjualan")
+
+    produk_tersedia = [p for p in st.session_state.produk if p["stok"] > 0]
+
+    if not produk_tersedia:
+        st.warning("Tidak ada produk tersedia. Tambahkan produk di tab Produk.")
+    else:
+        with st.form("form_transaksi"):
+            col1, col2 = st.columns([3, 1])
+            with col1:
+                pilihan = st.selectbox(
+                    "Pilih Produk",
+                    options=produk_tersedia,
+                    format_func=lambda p: f"{p['nama']} — Rp {p['harga']:,.0f} (stok: {p['stok']})"
+                )
+            with col2:
+                qty = st.number_input("Jumlah", min_value=1, max_value=pilihan["stok"], step=1)
+
+            total = pilihan["harga"] * qty
+            st.info(f"💵 Total: **Rp {total:,.0f}**")
+
+            jual = st.form_submit_button("💰 Catat Penjualan")
+            if jual:
+                # Kurangi stok
+                for p in st.session_state.produk:
+                    if p["id"] == pilihan["id"]:
+                        p["stok"] -= qty
+                        break
+                # Simpan transaksi
+                st.session_state.transaksi.append({
+                    "nama": pilihan["nama"],
+                    "qty": qty,
+                    "harga_satuan": pilihan["harga"],
+                    "total": total,
+                    "waktu": datetime.now().strftime("%d/%m/%Y %H:%M"),
+                })
+                st.success(f"✅ Terjual {qty}x {pilihan['nama']} — Rp {total:,.0f}")
+                st.rerun()
+
+# ── TAB 3: Riwayat ─────────────────────────────────────────────────────────────
+with tab3:
+    st.subheader("📋 Riwayat Transaksi")
+
+    if not st.session_state.transaksi:
+        st.info("Belum ada transaksi.")
+    else:
+        # Tampilkan terbaru di atas
+        for t in reversed(st.session_state.transaksi):
+            col1, col2, col3 = st.columns([4, 2, 2])
+            with col1:
+                st.write(f"**{t['nama']}**")
+                st.caption(f"{t['waktu']} · {t['qty']} pcs @ Rp {t['harga_satuan']:,.0f}")
+            with col2:
+                st.write(f"Rp {t['total']:,.0f}")
+            with col3:
+                st.caption("✅ Selesai")
+
+        st.divider()
+        st.write(f"**Total Pendapatan: Rp {total_pendapatan:,.0f}**")
+
+        if st.button("🗑️ Hapus Semua Riwayat"):
+            st.session_state.transaksi = []
+            st.rerun()
